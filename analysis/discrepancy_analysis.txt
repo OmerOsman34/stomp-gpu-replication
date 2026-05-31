@@ -1,0 +1,235 @@
+# STOMP Replication: Discrepancy Analysis
+
+## Expected Differences from Zhu et al. (2016)
+
+### 1. Hardware Platform
+
+**Original Paper:**
+- GPU: NVIDIA Tesla K80 (dual GPU setup mentioned)
+- Year: 2016
+- Specialized hardware for numerical computing
+
+**Our Replication:**
+- CPU: Modern x86-64 processor (consumer/laptop grade)
+- Year: 2026 (+10 years advancement)
+- General-purpose computation
+
+**Impact:** Modern CPUs for small-to-medium datasets (< 100M points) often outperform 2016 GPUs due to architectural improvements. However, GPU would dominate at 100M+ scale.
+
+---
+
+### 2. Implementation Details
+
+**Original Paper:**
+- Custom CUDA GPU implementation
+- Optimized GPU memory management
+- Explicit parallelization for GPU cores
+
+**Our Replication:**
+- STUMPY library (Python wrapper around optimized C++)
+- CPU parallelization via OpenMP (through numpy/scipy)
+- General-purpose optimization
+
+**Impact:** STUMPY is highly optimized but may differ in specific implementation details. The algorithmic principles should be identical.
+
+---
+
+### 3. Dataset Sizes
+
+**Original Paper:**
+- Tested up to 100+ million datapoints
+- GPU memory allowed this scale
+- Demonstrated scaling to practical limits
+
+**Our Replication:**
+- Testing 1M, 10M, 50M datapoints (realistic CPU limits)
+- RAM constraints prevent 100M+ testing
+- Still validates O(n²) scaling relationship
+
+**Impact:** Cannot directly compare absolute runtimes at extreme scale. However, the **scaling trend (O(n²) coefficient)** should be comparable when normalized for hardware differences.
+
+---
+
+### 4. Subsequence Length
+
+**Original Paper:**
+- Multiple subsequence lengths tested (m = 10, 50, 100, etc.)
+- Demonstrated O(n²) **independence** from m
+
+**Our Replication:**
+- Fixed m = 50 for all tests
+- Still validates that time doesn't increase with m
+- Could repeat with different m values to fully replicate paper
+
+**Impact:** Single m=50 is sufficient to demonstrate core innovation. Multi-m testing would strengthen the claim.
+
+---
+
+### 5. System Variance
+
+**Sources of variation between runs:**
+1. **CPU frequency scaling** - Dynamic voltage and frequency scaling (DVFS)
+2. **Cache effects** - Warm vs. cold cache, cache misses
+3. **Background processes** - OS task switching
+4. **Memory timing** - NUMA effects on multi-socket systems
+
+**Mitigation:**
+- Using fixed seed for data generation
+- Multiple runs (in theory) and averaging
+- Measuring on idle system when possible
+- Using high-resolution timer (perf_counter)
+
+**Expected variance:** ±5-10% between runs on the same machine
+
+---
+
+## Interpretation Guide
+
+### If Our Results Show:
+
+#### Case 1: Runtime increases roughly 100x when size increases 10x
+**Interpretation:** ✓ Confirms O(n²) complexity  
+**Consistency with paper:** Perfect match to expectations  
+**Conclusion:** Algorithm working as intended
+
+#### Case 2: Runtime increases 80-120x (not exactly 100x)
+**Interpretation:** ✓ Approximately O(n²), with system effects  
+**Consistency with paper:** Expected and explained  
+**Conclusion:** Algorithm correct; variance is normal
+
+#### Case 3: Runtime increases 1000x (faster than O(n²) expected)
+**Interpretation:** ✗ Something wrong (unlikely)  
+**Possible causes:** 
+- Data fits entirely in CPU cache for smaller size
+- Compiler optimization differences
+- Incorrect measurement
+
+#### Case 4: Runtime increases 10x (slower than O(n²) expected)
+**Interpretation:** ✗ Super-quadratic scaling (problematic)  
+**Possible causes:**
+- Memory bandwidth limitation becoming bottleneck
+- I/O operations interfering
+- Incorrect algorithm implementation
+
+---
+
+## Expected Results by Dataset Size
+
+### 1 Million Points (1M)
+
+| Metric | Expected | Justification |
+|--------|----------|---|
+| Runtime | 10-30 sec | Small enough for cache-friendly computation |
+| Memory | ~8 MB | 1M floats × 8 bytes |
+| Matrix Profile | ~1M elements | n - m + 1 ≈ n |
+| Speedup potential | Low | CPU already fast, GPU overhead not worth it |
+
+### 10 Million Points (10M)
+
+| Metric | Expected | Justification |
+|--------|----------|---|
+| Runtime | 100x more than 1M → 1-5 min | O(n²) scaling |
+| Memory | ~80 MB | Still fits in cache |
+| Matrix Profile | ~10M elements | All fit in memory |
+| Speedup potential | Moderate | GPU would start to help |
+
+### 50 Million Points (50M)
+
+| Metric | Expected | Justification |
+|--------|----------|---|
+| Runtime | 2500x more than 1M → 30-120 min | Extreme O(n²) scaling |
+| Memory | ~400 MB | Requires main memory, no cache fitting |
+| Matrix Profile | ~50M elements | Significant memory requirement |
+| Speedup potential | HIGH | GPU would be 10-20x faster |
+
+---
+
+## How to Interpret Discrepancies
+
+### Scenario: Our runtimes are 50x slower than paper
+
+**Analysis:**
+1. Check hardware: CPU vs. GPU (expected to be different)
+2. Check dataset size: Are we comparing apples-to-apples?
+3. Check parallelization: Is n_jobs=-1 actually using all cores?
+4. Check profiling: Where is the time being spent?
+
+**Reasonable Explanation:**
+- GPU (2016) >> CPU (2026) at 100M+ scale ✓
+- But CPU (2026) might be faster at small scale ✓
+
+**Action:** Document the difference and explain why it's expected.
+
+---
+
+### Scenario: Our runtimes are 2x faster than paper
+
+**Analysis:**
+1. Check implementation: Could STUMPY be more optimized?
+2. Check dataset generation: Is memory allocation included in timing?
+3. Check hardware: Maybe our CPU is faster than average
+
+**Reasonable Explanation:**
+- STUMPY uses highly optimized C++ backend ✓
+- Hardware has improved significantly since 2016 ✓
+- We're measuring only computation, not I/O ✓
+
+**Action:** This is a positive sign! Means the algorithm is efficient.
+
+---
+
+### Scenario: O(n²) scaling is not verified (runtime increases unpredictably)
+
+**Analysis:**
+1. Check calculation: Did we compute speedup correctly?
+2. Check data: Is variation just measurement noise?
+3. Check system: Are background processes running?
+
+**Troubleshooting:**
+- Run 2-3 times and average
+- Plot on log-log scale (O(n²) should be linear)
+- Use system profiling tools to verify CPU utilization
+
+**Action:** Run diagnostic checks and retry.
+
+---
+
+## Documentation Requirements
+
+### For Report (summary.qmd)
+
+- [ ] State exact hardware used
+- [ ] List all parameters (m, n, etc.)
+- [ ] Show actual measured runtimes
+- [ ] Compare against paper's reported values
+- [ ] Explain why differences are expected
+- [ ] Demonstrate O(n²) scaling mathematically
+
+### For Analysis (this file)
+
+- [ ] Document measurement methodology
+- [ ] List all sources of variance
+- [ ] Provide interpretation guide
+- [ ] Explain expected differences
+
+### For Code Comments
+
+- [ ] Document all assumptions
+- [ ] Add timing annotations
+- [ ] Note any workarounds or optimizations
+
+---
+
+## Final Verification Checklist
+
+Before claiming replication success:
+
+- [ ] O(n²) scaling verified (log-log plot is linear)
+- [ ] Multiple runs produce consistent results
+- [ ] Seed-based reproducibility works
+- [ ] Hardware limitations understood
+- [ ] Results align with paper's methodology
+- [ ] Differences clearly documented
+- [ ] Critical analysis provided
+
+**If ALL checks pass:** ✓ Replication successful!
