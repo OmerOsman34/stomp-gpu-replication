@@ -47,21 +47,21 @@ class STOMPReplicator:
         return ts
     
     def compute_matrix_profile(self, ts: np.ndarray, 
-                              subsequence_length: int = 50,
-                              n_jobs: int = 1) -> tuple:
+                              subsequence_length: int = 50) -> tuple:
         """
         Compute matrix profile using STUMPY's STUMP algorithm.
         
         Args:
             ts: Time series array
             subsequence_length: Length of subsequences
-            n_jobs: Number of parallel jobs (-1 for auto)
         
         Returns:
             Tuple of (matrix_profile, matrix_profile_index, elapsed_time)
         """
         with Timer(f"STOMP computation (n={len(ts):,}, m={subsequence_length})") as timer:
-            mp = stumpy.stump(ts, m=subsequence_length, n_jobs=n_jobs)
+            # STUMPY stump() computes the matrix profile
+            # Default behavior uses all available CPU cores
+            mp = stumpy.stump(ts, m=subsequence_length)
         
         matrix_profile = mp[:, 0]
         matrix_profile_index = mp[:, 1].astype(int)
@@ -119,8 +119,7 @@ class STOMPReplicator:
             try:
                 mp, mp_idx, mp_time = self.compute_matrix_profile(
                     ts, 
-                    subsequence_length=subsequence_length,
-                    n_jobs=-1  # Use all available cores
+                    subsequence_length=subsequence_length
                 )
                 
                 # Record results
